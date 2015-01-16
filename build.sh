@@ -12,7 +12,7 @@
 # Beware: GNU libtool cannot handle directory names containing whitespace.
 #         Therefore, do not set M_CONF_TMPDIR to such a directory.
 #
-readonly M_CONF_TMPDIR=/tmp
+readonly M_CONF_TMPDIR=${M_CONFIG_TMPDIR:-/tmp}
 readonly M_PLISTSIGNER_TEST_KEY="`dirname $0`/prefpane/autoinstaller/TestKeys/private_key.der"
 
 # Other constants
@@ -539,12 +539,16 @@ function m_handler_lib()
     m_exit_on_error "cannot access OSXFUSE library source in '$M_CONF_TMPDIR/$package_name'."
 
     m_log "configuring library source"
-    COMPILER="$m_compiler" ARCHS="$m_archs" SDKROOT="$m_usdk_dir" MACOSX_DEPLOYMENT_TARGET="$m_platform" ./darwin_configure.sh "$kernel_dir" >$m_stdout 2>$m_stderr
+    COMPILER="$m_compiler" ARCHS="$m_archs" SDKROOT="$m_usdk_dir" MACOSX_DEPLOYMENT_TARGET="$m_platform" PREFIX="$m_prefix" ./darwin_configure.sh "$kernel_dir" >$m_stdout 2>$m_stderr
     m_exit_on_error "cannot configure OSXFUSE library source for compilation."
 
     m_log "running make"
     xcrun make -j4 >$m_stdout 2>$m_stderr
     m_exit_on_error "make failed while compiling the OSXFUSE library."
+
+    m_log "running make install"
+    xcrun make install >$m_stdout 2>$m_stderr
+    m_exit_on_error "make failed while installing the OSXFUSE library."
 
     echo >$m_stdout
     m_log "succeeded, results in '$M_CONF_TMPDIR/$package_name'."
