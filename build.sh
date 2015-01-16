@@ -12,7 +12,7 @@
 # Beware: GNU libtool cannot handle directory names containing whitespace.
 #         Therefore, do not set M_CONF_TMPDIR to such a directory.
 #
-readonly M_CONF_TMPDIR=${M_CONFIG_TMPDIR:-/tmp}
+readonly M_CONF_TMPDIR=${M_CONF_TMPDIR:-/tmp}
 readonly M_PLISTSIGNER_TEST_KEY="`dirname $0`/prefpane/autoinstaller/TestKeys/private_key.der"
 
 # Other constants
