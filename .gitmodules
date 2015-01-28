@@ -3,13 +3,13 @@
         url = https://github.com/osxfuse/framework.git
 [submodule "fuse"]
 	path = fuse
-	url = https://github.com/osxfuse/fuse.git
+	url = https://github.com/everbase/fuse.git
 [submodule "kext"]
 	path = kext
 	url = https://github.com/osxfuse/kext.git
 [submodule "macfuse"]
 	path = macfuse
-	url = https://github.com/osxfuse/fuse.git
+	url = https://github.com/everbase/fuse.git
 [submodule "prefpane"]
 	path = prefpane
 	url = https://github.com/osxfuse/prefpane.git
