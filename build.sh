@@ -105,6 +105,15 @@ readonly M_XCODE61_COMPILER="com.apple.compilers.llvm.clang.1_0"
 declare M_XCODE62=""
 declare M_XCODE62_VERSION=6.2
 readonly M_XCODE62_COMPILER="com.apple.compilers.llvm.clang.1_0"
+declare M_XCODE63=""
+declare M_XCODE63_VERSION=6.3
+readonly M_XCODE63_COMPILER="com.apple.compilers.llvm.clang.1_0"
+declare M_XCODE64=""
+declare M_XCODE64_VERSION=6.4
+readonly M_XCODE64_COMPILER="com.apple.compilers.llvm.clang.1_0"
+declare M_XCODE70=""
+declare M_XCODE70_VERSION=7.0
+readonly M_XCODE70_COMPILER="com.apple.compilers.llvm.clang.1_0"
 
 declare M_ACTUAL_PLATFORM=""
 declare M_PLATFORMS=""
@@ -147,6 +156,12 @@ readonly M_SDK_1010_ARCHS="i386 x86_64"
 declare M_SDK_1010=""
 declare M_SDK_1010_XCODE=""
 declare M_SDK_1010_COMPILER=""
+
+# SDK 10.11
+readonly M_SDK_1011_ARCHS="i386 x86_64"
+declare M_SDK_1011=""
+declare M_SDK_1011_XCODE=""
+declare M_SDK_1011_COMPILER=""
 
 readonly M_FSBUNDLE_NAME="osxfusefs.fs"
 readonly M_INSTALL_RESOURCES_DIR="Install_resources"
@@ -357,6 +372,13 @@ function m_set_platform()
         m_usdk_dir="$M_SDK_1010"
         m_compiler="$M_SDK_1010_COMPILER"
         m_archs="$M_SDK_1010_ARCHS"
+    ;;
+    10.11*)
+        m_osname="El Capitan"
+        m_xcode_dir="$M_SDK_1011_XCODE"
+        m_usdk_dir="$M_SDK_1011"
+        m_compiler="$M_SDK_1011_COMPILER"
+        m_archs="$M_SDK_1011_ARCHS"
     ;;
     *)
         m_osname="Unknown"
@@ -800,6 +822,12 @@ function m_handler_dist()
     elif [ -n "$M_SDK_109" ]
     then
         m_platform="10.9"
+    elif [ -n "$M_SDK_1010" ]
+    then
+        m_platform="10.10"
+    elif [ -n "$M_SDK_1011" ]
+    then
+        m_platform="10.11"
     else
         false
         m_exit_on_error "no supported SDK found"
@@ -848,7 +876,7 @@ function m_handler_dist()
 
     pushd "$m_srcroot/prefpane/autoinstaller" >/dev/null 2>/dev/null
     m_exit_on_error "cannot access the autoinstaller source."
-    xcodebuild -configuration "$m_configuration" -target "Build All" GCC_VERSION="$m_compiler" ARCHS="$m_archs" SDKROOT="$m_usdk_dir" MACOSX_DEPLOYMENT_TARGET="$m_platform" >$m_stdout 2>$m_stderr
+    xcodebuild -configuration "$m_configuration" -target "plist_signer" -target "autoinstall-osxfuse-core" GCC_VERSION="$m_compiler" ARCHS="$m_archs" SDKROOT="$m_usdk_dir" MACOSX_DEPLOYMENT_TARGET="$m_platform" >$m_stdout 2>$m_stderr
     m_exit_on_error "xcodebuild cannot build configuration $m_configuration for subtarget autoinstaller."
     popd >/dev/null 2>/dev/null
 
@@ -1251,6 +1279,10 @@ __END_DISTRIBUTION
 
     local md_volume_path="/Volumes/$md_volume_name"
 
+    /bin/chmod 755 "${md_volume_path}/.Trashes" >$m_stdout 2>$m_stderr && \
+    /bin/rm -rf "${md_volume_path}/.Trashes" >$m_stdout 2>$m_stderr
+    m_exit_on_error "cannot remove .Trashes directory from scratch disk image"
+
     # Copy over the license file
     #
     /bin/cp "$m_srcroot/packaging/diskimage/License.rtf" "$md_volume_path"
@@ -1357,37 +1389,84 @@ __END_ENGINE_INSTALL
 
     # Customize scratch image
     #
-    echo '
-        tell application "Finder"
-            tell disk "'$md_volume_name'"
-                open
-                set current view of container window to icon view
-                set toolbar visible of container window to false
-                set the bounds of container window to {0, 0, 500, 350}
-                set theViewOptions to the icon view options of container window
-                set arrangement of theViewOptions to not arranged
-                set icon size of theViewOptions to 128
-                set background picture of theViewOptions to file ".background:background.png"
-                set position of item "License.rtf" of container window to {100, 230}
-                set position of item "'$md_pkgname_installer'" of container window to {250, 230}
-                set position of item "OSXFUSE Website.webloc" of container window to {400, 230}
-                close
-                open
-                update without registering applications
-                close
-            end tell
-        end tell
-    ' | osascript
+    local disk_image_view_options='
+            set current view of container window to icon view
+            set toolbar visible of container window to false
+            set the bounds of container window to {0, 0, 500, 350}
+
+            set theViewOptions to the icon view options of container window
+            set arrangement of theViewOptions to not arranged
+            set icon size of theViewOptions to 128
+            set background picture of theViewOptions to file ".background:background.png"
+
+            set position of item "License.rtf" of container window to {100, 230}
+            set position of item "'$md_pkgname_installer'" of container window to {250, 230}
+            set position of item "OSXFUSE Website.webloc" of container window to {400, 230}'
+
+    local disk_image_view_options_digest=""
+    disk_image_view_options_digest="`/usr/bin/openssl dgst -sha256 <<< "${disk_image_view_options}"`"
     if [ $? -ne 0 ]
     then
         hdiutil detach "$md_volume_path" >$m_stdout 2>$m_stderr
         false
-        m_exit_on_error "cannot customize the scratch disk image."
+        m_exit_on_error "Failed to compute digest of view options"
+    fi
+
+    local disk_image_dsstore_tag=""
+    disk_image_dsstore_tag="$(/usr/bin/sed -n '1p' "$m_srcroot/packaging/diskimage/DS_Store" 2> /dev/null)"
+
+    if [[ "${disk_image_view_options_digest}" == "${disk_image_dsstore_tag}" ]]
+    then
+        /usr/bin/sed -n '1,1!p' "$m_srcroot/packaging/diskimage/DS_Store" > "$md_volume_path/.DS_Store" 2>$m_stderr
+        if [ $? -ne 0 ]
+        then
+            hdiutil detach "$md_volume_path" >$m_stdout 2>$m_stderr
+            false
+            m_exit_on_error "cannot copy cached .DS_Store file to disk image."
+        fi
+    else
+osascript >$m_stdout 2>$m_stderr <<EOF
+tell application "Finder"
+    tell disk "$md_volume_name"
+        open
+        delay 1
+        ${disk_image_view_options}
+        delay 1
+        update without registering applications
+        delay 1
+        close
+    end tell
+end tell
+EOF
+        if [ $? -ne 0 ]
+        then
+            hdiutil detach "$md_volume_path" >$m_stdout 2>$m_stderr
+            false
+            m_exit_on_error "cannot customize the scratch disk image."
+        fi
+
+        sync
+        sleep 1
+
+        printf "%s\n" "${disk_image_view_options_digest}" > "$m_srcroot/packaging/diskimage/DS_Store" 2>$m_stderr
+        if [ $? -ne 0 ]
+        then
+            hdiutil detach "$md_volume_path" >$m_stdout 2>$m_stderr
+            false
+            m_exit_on_error "cannot update cache tag of disk image .DS_Store file."
+        fi
+
+        /bin/cat "$md_volume_path/.DS_Store" >> "$m_srcroot/packaging/diskimage/DS_Store" 2>$m_stderr
+        if [ $? -ne 0 ]
+        then
+            hdiutil detach "$md_volume_path" >$m_stdout 2>$m_stderr
+            false
+            m_exit_on_error "cannot update cached disk image .DS_Store file."
+        fi
     fi
 
     chmod -Rf go-w "$md_volume_path"
-    sync
-    sync
+
     # ignore errors
 
     # Detach the volume.
@@ -1431,6 +1510,26 @@ cat > "$md_rules_plist" <<__END_RULES_PLIST
   <key>Rules</key>
   <array>
 __END_RULES_PLIST
+
+    if [[ "$M_PLATFORMS" =~ "10.11" ]]
+    then
+cat >> "$md_rules_plist" <<__END_RULES_PLIST
+    <dict>
+      <key>ProductID</key>
+      <string>$M_OSXFUSE_PRODUCT_ID</string>
+      <key>Predicate</key>
+      <string>SystemVersion.ProductVersion beginswith "10.11" AND Ticket.version != "$m_release_full"</string>
+      <key>Version</key>
+      <string>$m_release_full</string>
+      <key>Codebase</key>
+      <string>$md_download_url</string>
+      <key>Hash</key>
+      <string>$md_dmg_hash</string>
+      <key>Size</key>
+      <string>$md_dmg_size</string>
+    </dict>
+__END_RULES_PLIST
+    fi
 
     if [[ "$M_PLATFORMS" =~ "10.10" ]]
     then
@@ -2522,6 +2621,30 @@ function m_handler()
                     M_XCODE62_VERSION=$m_xcode_version
                 fi
                 ;;
+            6.3*)
+                m_version_compare $M_XCODE63_VERSION $m_xcode_version
+                if [[ $? != 2 ]]
+                then
+                    M_XCODE63="$m_xcode_root"
+                    M_XCODE63_VERSION=$m_xcode_version
+                fi
+                ;;
+            6.4*)
+                m_version_compare $M_XCODE64_VERSION $m_xcode_version
+                if [[ $? != 2 ]]
+                then
+                    M_XCODE64="$m_xcode_root"
+                    M_XCODE64_VERSION=$m_xcode_version
+                fi
+                ;;
+            7.0*)
+                m_version_compare $M_XCODE70_VERSION $m_xcode_version
+                if [[ $? != 2 ]]
+                then
+                    M_XCODE70="$m_xcode_root"
+                    M_XCODE70_VERSION=$m_xcode_version
+                fi
+                ;;
             *)
                 m_log "skip unsupported Xcode version in '$m_xcode_root'."
                 ;;
@@ -2681,6 +2804,7 @@ function m_handler()
             m_platform_realistic_add "10.9"
 
             m_platform_add "10.10"
+            m_platform_add "10.11"
         fi
     fi
     if [[ -n "$M_XCODE51" ]]
@@ -2698,6 +2822,7 @@ function m_handler()
         m_platform_realistic_add "10.9"
 
         m_platform_add "10.10"
+        m_platform_add "10.11"
     fi
     if [[ -n "$M_XCODE60" ]]
     then
@@ -2707,7 +2832,9 @@ function m_handler()
         M_SDK_109_XCODE="$M_XCODE60"
         M_SDK_109_COMPILER="$M_XCODE60_COMPILER"
         m_platform_realistic_add "10.9"
+
         m_platform_add "10.10"
+        m_platform_add "10.11"
     fi
     if [[ -n "$M_XCODE61" ]]
     then
@@ -2723,6 +2850,8 @@ function m_handler()
         M_SDK_1010_XCODE="$M_XCODE61"
         M_SDK_1010_COMPILER="$M_XCODE61_COMPILER"
         m_platform_realistic_add "10.10"
+
+        m_platform_add "10.11"
     fi
     if [[ -n "$M_XCODE62" ]]
     then
@@ -2738,6 +2867,57 @@ function m_handler()
         M_SDK_1010_XCODE="$M_XCODE62"
         M_SDK_1010_COMPILER="$M_XCODE62_COMPILER"
         m_platform_realistic_add "10.10"
+
+        m_platform_add "10.11"
+    fi
+    if [[ -n "$M_XCODE63" ]]
+    then
+        m_xcode_latest="$M_XCODE63"
+
+        M_SDK_109="$M_XCODE63/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.9.sdk"
+        M_SDK_109_XCODE="$M_XCODE63"
+        M_SDK_109_COMPILER="$M_XCODE63_COMPILER"
+        m_platform_realistic_add "10.9"
+        m_platform_add "10.10"
+
+        M_SDK_1010="$M_XCODE63/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.10.sdk"
+        M_SDK_1010_XCODE="$M_XCODE63"
+        M_SDK_1010_COMPILER="$M_XCODE63_COMPILER"
+        m_platform_realistic_add "10.10"
+
+        m_platform_add "10.11"
+    fi
+    if [[ -n "$M_XCODE64" ]]
+    then
+        m_xcode_latest="$M_XCODE64"
+
+        M_SDK_109="$M_XCODE64/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.9.sdk"
+        M_SDK_109_XCODE="$M_XCODE64"
+        M_SDK_109_COMPILER="$M_XCODE64_COMPILER"
+        m_platform_realistic_add "10.9"
+        m_platform_add "10.10"
+
+        M_SDK_1010="$M_XCODE64/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.10.sdk"
+        M_SDK_1010_XCODE="$M_XCODE64"
+        M_SDK_1010_COMPILER="$M_XCODE64_COMPILER"
+        m_platform_realistic_add "10.10"
+
+        m_platform_add "10.11"
+    fi
+    if [[ -n "$M_XCODE70" ]]
+    then
+        m_xcode_latest="$M_XCODE70"
+
+        M_SDK_1010="$M_XCODE70/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.10.sdk"
+        M_SDK_1010_XCODE="$M_XCODE70"
+        M_SDK_1010_COMPILER="$M_XCODE70_COMPILER"
+        m_platform_realistic_add "10.10"
+        m_platform_add "10.11"
+
+        M_SDK_1011="$M_XCODE70/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.11.sdk"
+        M_SDK_1011_XCODE="$M_XCODE70"
+        M_SDK_1011_COMPILER="$M_XCODE70_COMPILER"
+        m_platform_realistic_add "10.11"
     fi
 
     m_read_input "$@"
