@@ -33,15 +33,22 @@ The build script locates automatically all supported installations of Xcode in t
 
 * Xcode 6.0, 6.1, 6.2, 6.3, 6.4: FUSE for OS X can be built for OS X 10.9 to 10.11
 
-* Xcode 7.0: FUSE for OS X can be built for OS X 10.10 and 10.11
+* Xcode 7.0, 7.1: FUSE for OS X can be built for OS X 10.11
 
 ---
 
 **Note:**
 
-* Xcode 4.3 and newer versions do not include autotools and libtool, that are needed to build `libosxfuse`. Install MacPorts and run the following command in Terminal to install the required tools:
+* Xcode 4.3 and newer versions do not include autotools and libtool, that are needed to build `libosxfuse`. Install MacPorts or Homebrew and run the following commands in Terminal to install the required tools:
 
-        sudo port install autoconf automake libtool
+ MacPorts:
+
+        sudo port install autoconf automake libtool gettext
+
+ Homebrew:
+
+        brew install autoconf automake libtool gettext
+        brew link --force gettext
 
 * The "Command Line Tools" package is needed to generate BridgeSupport metadata for `OSXFUSE.framework` because of a bug in `gen_bridge_metadata` (hard coded path to `cpp`).
 
@@ -55,7 +62,7 @@ The Xcode tools packages can be obtained from https://developer.apple.com/downlo
 
 To clone the source repository into a newly created subdirectory named `osxfuse` in the current working directory, run the following command in Terminal:
 
-    git clone --recursive -b osxfuse-2 git://github.com/osxfuse/osxfuse.git osxfuse
+    git clone --recursive -b support/osxfuse-2 git://github.com/osxfuse/osxfuse.git osxfuse
 
 Run the following command in the cloned repository to build FUSE for OS X from source:
 
