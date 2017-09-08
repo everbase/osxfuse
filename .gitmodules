@@ -1,21 +1,21 @@
 [submodule "framework"]
         path = framework
-        url = ../framework.git
+        url = git@github.com:osxfuse/framework.git
 [submodule "fuse"]
 	path = fuse
-	url = ../fuse.git
+	url = git@github.com:osxfuse/fuse.git
 [submodule "kext"]
 	path = kext
-	url = ../kext.git
+	url = git@github.com:osxfuse/kext.git
 [submodule "macfuse_framework"]
         path = macfuse_framework
-        url = ../framework.git
+        url = git@github.com:osxfuse/framework.git
 [submodule "macfuse_fuse"]
         path = macfuse_fuse
-        url = ../fuse.git
+        url = git@github.com:osxfuse/fuse.git
 [submodule "prefpane"]
 	path = prefpane
-	url = ../prefpane.git
+	url = git@github.com:osxfuse/prefpane.git
 [submodule "support"]
         path = support
-        url = ../support.git
+        url = git@github.com:osxfuse/support.git
